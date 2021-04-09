@@ -1,17 +1,22 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
+
 #define STB_IMAGE_IMPLEMENTATION
-#include "stb_image.h"
-#include <math.h>
-#include "shader.h"
+#include "./include/stb_image.h"
+
+#include "./include/shader.h"
 #include <iostream>
+
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void processInput(GLFWwindow *window);
 
 // settings
 const unsigned int SCR_WIDTH = 800;
-const unsigned int SCR_HEIGHT = 600;
+const unsigned int SCR_HEIGHT = 800;
 
 int main()
 {
@@ -36,6 +41,7 @@ int main()
     }
 
     glfwMakeContextCurrent(window);
+    glfwSwapInterval(1); // vsync on/off
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
 
     // Load all OpenGL function pointers
@@ -45,7 +51,7 @@ int main()
         return -1;
     }
 
-    Shader shader("../shaders/shader.vs", "../shaders/shader.fs");
+    Shader shader("../shader/shader.vs", "../shader/shader.fs");
 
     // Vertex data
     float vertices[] = {
@@ -88,9 +94,36 @@ int main()
     glEnableVertexAttribArray(2);
 
     // load and create texture
-    unsigned int texture;
-    glGenTextures(1, &texture);
-    glBindTexture(GL_TEXTURE_2D, texture);
+    unsigned int texture1, texture2;
+    glGenTextures(1, &texture1);
+    glBindTexture(GL_TEXTURE_2D, texture1);
+
+    // wrapping
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
+    // filtering
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    stbi_set_flip_vertically_on_load(true);
+
+    // load image, create texture and generate mipmap
+    int width, height, nrChannels;
+    unsigned char *data = stbi_load("../resource/texture/container.jpg", &width, &height, &nrChannels, 0);
+
+    if (data) {
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+        glGenerateMipmap(GL_TEXTURE_2D);
+    } else {
+        std::cout << "Error: Failed to load texture" << std::endl;
+    }
+
+    stbi_image_free(data);
+
+    // load and create texture
+    glGenTextures(1, &texture2);
+    glBindTexture(GL_TEXTURE_2D, texture2);
 
     // wrapping
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
@@ -101,17 +134,27 @@ int main()
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
     // load image, create texture and generate mipmap
-    int width, height, nrChannels;
-    unsigned char *data = stbi_load("../resources/textures/container.jpg", &width, &height, &nrChannels, 0);
+    data = stbi_load("../resource/texture/awesomeface.png", &width, &height, &nrChannels, 0);
 
     if (data) {
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
         glGenerateMipmap(GL_TEXTURE_2D);
     } else {
         std::cout << "Error: Failed to load texture" << std::endl;
     }
 
     stbi_image_free(data);
+
+    shader.use();
+    // glUniform1i(glGetUniformLocation(shader.ID, "texture1"), 0);
+    shader.setInt("texture1", 0);
+    shader.setInt("texture2", 1);
+
+    // FPS counter
+    int frames = 0;
+    float t, t0, fps;
+    char title_string[30];
+    t0 = glfwGetTime();
 
     // Render loop
     while (!glfwWindowShouldClose(window))
@@ -123,15 +166,38 @@ int main()
         glClearColor(0.2f, 0.2f, 0.3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
 
+        // FPS counter
+        t = glfwGetTime();
+
+        if((t - t0) > 1.0 || frames == 0) {
+            fps = (double)frames / (t - t0);
+            sprintf(title_string, "OpenGL FPS: %.2f", fps);
+            glfwSetWindowTitle(window, title_string);
+            t0 = t;
+            frames = 0;
+        }
+
+        frames ++;
+
         // bind texture
-        glBindTexture(GL_TEXTURE_2D, texture);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, texture1);
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, texture2);
+
+        glm::mat4 transform = glm::mat4(1.0f);
+        // transform = glm::translate(transform, glm::vec3(0.5f, -0.5f, 0.0f));
+        transform = glm::rotate(transform, (float)glfwGetTime(), glm::vec3(1.0f, 0.01f, 1.0f));
 
         shader.use();
+        unsigned int transformLoc = glGetUniformLocation(shader.ID, "transform");
+        glUniformMatrix4fv(transformLoc, 1, GL_FALSE, glm::value_ptr(transform));      
+
         glBindVertexArray(VAO);
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 
         // Draw mode
-        // glPolygonMode(GL_FRONT_AND_BACK, GL_FILL); // GL_LINE for wireframe mode
+        // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE); // GL_LINE for wireframe mode
 
         // Swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
         glfwSwapBuffers(window);

@@ -4,7 +4,7 @@ project(opengl)
 
 set(CMAKE_CXX_STANDARD 11)
 
-set(SOURCE_FILES main.cpp glad.c shader.cpp)
+set(SOURCE_FILES main.cpp ./include/glad.c)
 
 add_executable(opengl ${SOURCE_FILES})
 
