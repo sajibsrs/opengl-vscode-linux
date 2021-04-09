@@ -33,20 +33,18 @@ int main()
     // glfw window creation
     GLFWwindow* window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "OpenGL programming", NULL, NULL);
 
-    if (window == NULL)
-    {
+    if (window == NULL) {
         std::cout << "Failed to create GLFW window" << std::endl;
         glfwTerminate();
         return -1;
     }
 
     glfwMakeContextCurrent(window);
-    glfwSwapInterval(1); // vsync on/off
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
+    glfwSwapInterval(1);
 
     // Load all OpenGL function pointers
-    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
-    {
+    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
         std::cout << "Failed to initialize GLAD" << std::endl;
         return -1;
     }
@@ -146,7 +144,6 @@ int main()
     stbi_image_free(data);
 
     shader.use();
-    // glUniform1i(glGetUniformLocation(shader.ID, "texture1"), 0);
     shader.setInt("texture1", 0);
     shader.setInt("texture2", 1);
 
@@ -157,8 +154,8 @@ int main()
     t0 = glfwGetTime();
 
     // Render loop
-    while (!glfwWindowShouldClose(window))
-    {
+    while (!glfwWindowShouldClose(window)) {
+        
         // input
         processInput(window);
 
@@ -169,7 +166,7 @@ int main()
         // FPS counter
         t = glfwGetTime();
 
-        if((t - t0) > 1.0 || frames == 0) {
+        if ((t - t0) > 1.0 || frames == 0) {
             fps = (double)frames / (t - t0);
             sprintf(title_string, "OpenGL FPS: %.2f", fps);
             glfwSetWindowTitle(window, title_string);
@@ -186,20 +183,19 @@ int main()
         glBindTexture(GL_TEXTURE_2D, texture2);
 
         glm::mat4 transform = glm::mat4(1.0f);
-        // transform = glm::translate(transform, glm::vec3(0.5f, -0.5f, 0.0f));
+        transform = glm::translate(transform, glm::vec3(0.0f, 0.0f, 0.0f));
         transform = glm::rotate(transform, (float)glfwGetTime(), glm::vec3(1.0f, 0.01f, 1.0f));
 
         shader.use();
-        unsigned int transformLoc = glGetUniformLocation(shader.ID, "transform");
-        glUniformMatrix4fv(transformLoc, 1, GL_FALSE, glm::value_ptr(transform));      
+        // unsigned int transformLoc = glGetUniformLocation(shader.ID, "transform");
+        // glUniformMatrix4fv(transformLoc, 1, GL_FALSE, glm::value_ptr(transform));
+        shader.setMat4("transform", transform);
 
         glBindVertexArray(VAO);
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 
-        // Draw mode
         // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE); // GL_LINE for wireframe mode
 
-        // Swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
@@ -208,7 +204,7 @@ int main()
     glDeleteBuffers(1, &VBO);
     glDeleteBuffers(1, &EBO);
 
-    // Terminate, clearing all previously allocated GLFW resources.
+    // clear GLFW resources
     glfwTerminate();
     return 0;
 }
