@@ -15,8 +15,17 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void processInput(GLFWwindow *window);
 
 // settings
-const unsigned int SCR_WIDTH = 1024;
-const unsigned int SCR_HEIGHT = 576;
+const unsigned int SCR_WIDTH    = 1024;
+const unsigned int SCR_HEIGHT   = 576;
+
+// camera
+glm::vec3 cameraPos   = glm::vec3(0.0f, 0.0f,  3.0f);
+glm::vec3 cameraFront = glm::vec3(0.0f, 0.0f, -1.0f);
+glm::vec3 cameraUp    = glm::vec3(0.0f, 1.0f,  0.0f);
+
+// timing
+float deltaTime = 0.0f;	// time between current frame and last frame
+float lastFrame = 0.0f;
 
 int main()
 {
@@ -125,10 +134,6 @@ int main()
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
 
-    // color
-    // glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
-    // glEnableVertexAttribArray(1);
-
     // texture coordinate
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
     glEnableVertexAttribArray(1);
@@ -195,15 +200,52 @@ int main()
     char title_string[30];
     t0 = glfwGetTime();
 
+    // initialize with identity matrix
+    glm::mat4 projection = glm::mat4(1.0f);
+    projection = glm::perspective(glm::radians(45.0f), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
+    shader.setMat4("projection", projection);
+
     // Render loop
     while (!glfwWindowShouldClose(window)) {
+
+        // per-frame time logic
+        float currentFrame  = glfwGetTime();
+        deltaTime           = currentFrame - lastFrame;
+        lastFrame           = currentFrame;
         
         // input
         processInput(window);
 
         // render
-        glClearColor(0.2f, 0.2f, 0.3f, 1.0f);
+        glClearColor(0.1f, 0.3f, 0.25f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        // bind texture
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, texture1);
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, texture2);
+
+        shader.use();
+
+        // camera/view tranformation
+        glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
+        shader.setMat4("view", view);
+
+        float dynamicColor = (float)sin(glfwGetTime()) * 2.0f; // change value dynamically
+        shader.setVec4("attrColor", 1.0f, 1.0f, 1.0f, 1.0f);
+
+        glBindVertexArray(VAO);
+
+        for (unsigned int i = 0; i < 10; i++) {
+            glm::mat4 model = glm::mat4(1.0f);
+            model = glm::translate(model, cubePositions[i]);
+            model = glm::rotate(model, glm::radians(20.f) * (float)glfwGetTime() + i, glm::vec3(1.0f, 0.5f, 0.5f));
+            shader.setMat4("model", model);
+            glDrawArrays(GL_TRIANGLES, 0, 36);
+        }
+
+        // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
         // FPS counter
         t = glfwGetTime();
@@ -218,41 +260,6 @@ int main()
 
         frames ++;
 
-        // bind texture
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, texture1);
-        glActiveTexture(GL_TEXTURE1);
-        glBindTexture(GL_TEXTURE_2D, texture2);
-
-        shader.use();
-        float dynamicVal = (float)sin(glfwGetTime()) * 3.0f;
-        shader.setVec4("attrColor", 1.0f, 1.0f, 1.0f, 1.0f);
-
-        // initialize with identity matrix
-        
-        glm::mat4 view = glm::mat4(1.0f);
-        glm::mat4 projection = glm::mat4(1.0f);
-
-        view = glm::translate(view, glm::vec3(0.0f, 0.0f, -3.0f));
-        // projection = glm::ortho(-1.0f, 1.0f, -1.0f, 1.0f, 0.1f, 100.0f);
-        projection = glm::perspective(glm::radians(45.0f), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
-
-        
-        shader.setMat4("view", view);
-        shader.setMat4("projection", projection);
-
-        glBindVertexArray(VAO);
-
-        for (unsigned int i = 0; i < 10; i++) {
-            glm::mat4 model = glm::mat4(1.0f);
-            model = glm::translate(model, cubePositions[i]);
-            model = glm::rotate(model, glm::radians(20.f) * (float)glfwGetTime() + i, glm::vec3(1.0f, 0.5f, 0.5f));
-            shader.setMat4("model", model);
-            glDrawArrays(GL_TRIANGLES, 0, 36);
-        }
-
-        // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE); // GL_LINE for wireframe mode
-
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
@@ -265,18 +272,35 @@ int main()
     return 0;
 }
 
-// Query GLFW whether relevant keys are pressed/released this frame and react accordingly
+// Input processing
 void processInput(GLFWwindow *window)
 {
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
         glfwSetWindowShouldClose(window, true);
     }
+
+    float cameraSpeed = 1.5 * deltaTime;
+
+    if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
+        cameraPos += cameraSpeed * cameraFront;
+    }
+        
+    if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
+        cameraPos -= cameraSpeed * cameraFront;
+    }
+        
+    if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
+        cameraPos -= glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
+    }
+        
+    if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
+        cameraPos += glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
+    }
+        
 }
 
-// Whenever the window size changed (by OS or user resize) this callback function executes
+// Callback on window resize
 void framebuffer_size_callback(GLFWwindow* window, int width, int height)
 {
-    // make sure the viewport matches the new window dimensions; note that width and 
-    // height will be significantly larger than specified on retina displays.
     glViewport(0, 0, width, height);
 }
